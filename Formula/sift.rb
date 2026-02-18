@@ -8,7 +8,8 @@ class Sift < Formula
   depends_on "swift" => :build
 
   def install
-    system "swift", "build", "-c", "release", "--product", "wax"
+    ENV["SWIFTPM_DISABLE_SANDBOX"] = "1"
+    system "swift", "build", "--disable-sandbox", "-c", "release", "--product", "wax"
     bin.install ".build/release/wax"
   end
 
