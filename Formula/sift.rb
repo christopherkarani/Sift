@@ -1,7 +1,7 @@
 class Sift < Formula
   desc "Semantic git history CLI powered by Wax"
   homepage "https://github.com/christopherkarani/Sift"
-  url "https://github.com/christopherkarani/Sift/archive/refs/tags/v0.1.0.tar.gz"
+  url "https://github.com/christopherkarani/Sift/archive/refs/tags/v0.0.1.tar.gz"
   sha256 "REPLACE_WITH_RELEASE_TARBALL_SHA256"
   license "Apache-2.0"
 
