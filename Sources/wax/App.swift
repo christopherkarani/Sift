@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 
 @main
-struct WaxCommand: AsyncParsableCommand {
+struct WaxCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "wax",
         abstract: "Sift semantic git history CLI",
@@ -12,7 +12,7 @@ struct WaxCommand: AsyncParsableCommand {
     )
 }
 
-struct QueryCommand: AsyncParsableCommand {
+struct QueryCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "query",
         abstract: "Run a one-shot natural-language semantic git query"
@@ -23,28 +23,41 @@ struct QueryCommand: AsyncParsableCommand {
     @Argument(parsing: .remaining, help: "Natural-language query.")
     var queryParts: [String] = []
 
-    mutating func run() async throws {
+    mutating func run() throws {
         let query = normalizeQuery(queryParts)
         if query.isEmpty {
             var tui = TUICommand()
             tui.options = options
-            try await tui.run()
+            try tui.run()
             return
         }
 
-        let repoRoot = try resolveRepoRoot(options.repoPath)
-        let layout = try await IndexWorkflow.ensureIndexedIfNeeded(
-            repoRoot: repoRoot,
-            textOnly: options.textOnly,
-            maxCommits: options.maxCommits,
-            autoIndex: !options.noAutoIndex
-        )
+        let repoPath = options.repoPath
+        let textOnly = options.textOnly
+        let maxCommits = options.maxCommits
+        let autoIndex = !options.noAutoIndex
+        let topK = max(1, options.topK)
+        let repoRoot = try resolveRepoRoot(repoPath)
+        let layout = try runAsyncAndBlock {
+            try await IndexWorkflow.ensureIndexedIfNeeded(
+                repoRoot: repoRoot,
+                textOnly: textOnly,
+                maxCommits: maxCommits,
+                autoIndex: autoIndex
+            )
+        }
 
-        let store = try await RepoStore(storeURL: layout.storePath, textOnly: options.textOnly)
+        let store = try runAsyncAndBlock {
+            try await RepoStore(storeURL: layout.storePath, textOnly: textOnly)
+        }
         let start = CFAbsoluteTimeGetCurrent()
-        let hits = try await store.search(query: query, topK: max(1, options.topK))
+        let hits = try runAsyncAndBlock {
+            try await store.search(query: query, topK: topK)
+        }
         let elapsed = CFAbsoluteTimeGetCurrent() - start
-        try await store.close()
+        try runAsyncAndBlock {
+            try await store.close()
+        }
 
         print("Query: \(query)")
         print("Results: \(hits.count) in \(String(format: "%.1f", elapsed * 1000))ms")

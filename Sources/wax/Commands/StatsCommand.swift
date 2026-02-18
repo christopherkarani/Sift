@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct StatsCommand: AsyncParsableCommand {
+struct StatsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "stats",
         abstract: "Show index statistics"
@@ -10,7 +10,7 @@ struct StatsCommand: AsyncParsableCommand {
     @Option(name: .customLong("repo-path"), help: "Path to the git repository (default: current directory)")
     var repoPath: String = "."
 
-    mutating func run() async throws {
+    mutating func run() throws {
         let repoRoot = try resolveRepoRoot(repoPath)
         let layout = repoLayout(for: repoRoot)
 
@@ -19,8 +19,12 @@ struct StatsCommand: AsyncParsableCommand {
             return
         }
 
-        let store = try await RepoStore(storeURL: layout.storePath, textOnly: true)
-        let stats = await store.stats()
+        let store = try runAsyncAndBlock {
+            try await RepoStore(storeURL: layout.storePath, textOnly: true)
+        }
+        let stats = try runAsyncAndBlock {
+            await store.stats()
+        }
 
         let lastHash: String? = {
             guard let data = try? Data(contentsOf: layout.lastHashFile),
@@ -48,6 +52,8 @@ struct StatsCommand: AsyncParsableCommand {
             print("  Last indexed:  \(lastHash.prefix(12))")
         }
 
-        try await store.close()
+        try runAsyncAndBlock {
+            try await store.close()
+        }
     }
 }

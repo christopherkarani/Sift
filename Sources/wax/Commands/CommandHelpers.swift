@@ -1,4 +1,5 @@
 import ArgumentParser
+import Dispatch
 import Foundation
 
 struct RepoLayout {
@@ -85,4 +86,44 @@ func formatBytes(_ bytes: Int64) -> String {
         return "\(bytes) B"
     }
     return String(format: "%.1f %@", value, units[unitIndex])
+}
+
+private final class AsyncResultBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<Value, Error>?
+
+    func set(_ newValue: Result<Value, Error>) {
+        lock.lock()
+        result = newValue
+        lock.unlock()
+    }
+
+    func get() -> Result<Value, Error>? {
+        lock.lock()
+        let value = result
+        lock.unlock()
+        return value
+    }
+}
+
+func runAsyncAndBlock<T: Sendable>(
+    _ operation: @escaping @Sendable () async throws -> T
+) throws -> T {
+    let semaphore = DispatchSemaphore(value: 0)
+    let box = AsyncResultBox<T>()
+
+    Task.detached {
+        defer { semaphore.signal() }
+        do {
+            box.set(.success(try await operation()))
+        } catch {
+            box.set(.failure(error))
+        }
+    }
+
+    semaphore.wait()
+    guard let result = box.get() else {
+        throw ValidationError("Operation did not produce a result")
+    }
+    return try result.get()
 }

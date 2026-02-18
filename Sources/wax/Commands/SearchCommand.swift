@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import SwiftTUI
 
-struct TUICommand: AsyncParsableCommand {
+struct TUICommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "tui",
         abstract: "Launch interactive semantic git search UI"
@@ -10,20 +10,25 @@ struct TUICommand: AsyncParsableCommand {
 
     @OptionGroup var options: GlobalOptions
 
-    mutating func run() async throws {
-        let repoRoot = try resolveRepoRoot(options.repoPath)
-        let layout = try await IndexWorkflow.ensureIndexedIfNeeded(
-            repoRoot: repoRoot,
-            textOnly: options.textOnly,
-            maxCommits: options.maxCommits,
-            autoIndex: !options.noAutoIndex
-        )
+    mutating func run() throws {
+        let repoPath = options.repoPath
+        let textOnly = options.textOnly
+        let maxCommits = options.maxCommits
+        let autoIndex = !options.noAutoIndex
+        let topK = options.topK
 
-        let store = try await RepoStore(storeURL: layout.storePath, textOnly: options.textOnly)
-        // SwiftTUI's Application.start() calls dispatch_main(), which must execute on main thread.
-        await MainActor.run {
-            let viewModel = SearchViewModel(store: store, topK: options.topK)
-            Application(rootView: SearchView(viewModel: viewModel)).start()
+        let repoRoot = try resolveRepoRoot(repoPath)
+        let store: RepoStore = try runAsyncAndBlock {
+            let layout = try await IndexWorkflow.ensureIndexedIfNeeded(
+                repoRoot: repoRoot,
+                textOnly: textOnly,
+                maxCommits: maxCommits,
+                autoIndex: autoIndex
+            )
+            return try await RepoStore(storeURL: layout.storePath, textOnly: textOnly)
         }
+
+        let viewModel = SearchViewModel(store: store, topK: topK)
+        Application(rootView: SearchView(viewModel: viewModel)).start()
     }
 }

@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct IndexCommand: AsyncParsableCommand {
+struct IndexCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "index",
         abstract: "Index git history for semantic search"
@@ -19,14 +19,21 @@ struct IndexCommand: AsyncParsableCommand {
     @Flag(name: .customLong("text-only"), help: "Use text search only (skip MiniLM embeddings)")
     var textOnly: Bool = false
 
-    mutating func run() async throws {
+    mutating func run() throws {
+        let repoPath = repoPath
+        let full = full
+        let maxCommits = maxCommits
+        let textOnly = textOnly
+
         let root = try resolveRepoRoot(repoPath)
-        _ = try await IndexWorkflow.run(
-            repoRoot: root,
-            full: full,
-            maxCommits: maxCommits,
-            textOnly: textOnly,
-            showProgress: true
-        )
+        _ = try runAsyncAndBlock {
+            try await IndexWorkflow.run(
+                repoRoot: root,
+                full: full,
+                maxCommits: maxCommits,
+                textOnly: textOnly,
+                showProgress: true
+            )
+        }
     }
 }
