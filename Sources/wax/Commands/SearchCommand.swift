@@ -20,7 +20,10 @@ struct TUICommand: AsyncParsableCommand {
         )
 
         let store = try await RepoStore(storeURL: layout.storePath, textOnly: options.textOnly)
-        let viewModel = SearchViewModel(store: store, topK: options.topK)
-        Application(rootView: SearchView(viewModel: viewModel)).start()
+        // SwiftTUI's Application.start() calls dispatch_main(), which must execute on main thread.
+        await MainActor.run {
+            let viewModel = SearchViewModel(store: store, topK: options.topK)
+            Application(rootView: SearchView(viewModel: viewModel)).start()
+        }
     }
 }
